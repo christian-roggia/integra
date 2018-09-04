@@ -24,14 +24,14 @@ const (
 func (tt TokenType) String() string {
 	s := []string{
 		"EOF",
-		"Error",
-		"Identifier",
-		"Keyword",
-		"Separator",
-		"Operator",
-		"Number",
-		"String",
-		"Comment",
+		"ERROR",
+		"IDENTIFIER",
+		"KEYWORD",
+		"SEPARATOR",
+		"OPERATOR",
+		"NUMBER",
+		"STRING",
+		"COMMENT",
 	}
 
 	if int(tt) < len(s) {
@@ -53,5 +53,5 @@ func (t *Token) String() string {
 		return "EOF"
 	}
 
-	return fmt.Sprintf("%-12v: %s", t.Type, t.Value)
+	return fmt.Sprintf("%s '%s'", t.Type, t.Value)
 }

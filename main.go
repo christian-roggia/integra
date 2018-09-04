@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	"github.com/christian-roggia/integra/lexer"
+	"github.com/christian-roggia/integra/parser"
 )
 
 func main() {
-	b, _ := ioutil.ReadFile("integra.int")
+	/*b, _ := ioutil.ReadFile("integra.int")
 	l := lexer.Lex("integra.int", string(b))
 	for {
 		select {
@@ -18,5 +18,14 @@ func main() {
 				return
 			}
 		}
+	}*/
+
+	b, _ := ioutil.ReadFile("integra.int")
+	p := parser.NewParser("integra.int", string(b))
+	if err := p.Parse(); err != nil {
+		fmt.Printf("%s\n", err)
+		return
 	}
+
+	fmt.Println("Succesfully finished.")
 }

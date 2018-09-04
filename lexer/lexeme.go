@@ -29,7 +29,7 @@ func lexText(l *Lexer) stateFn {
 		return lexComment
 	case isIdentifier(r):
 		return lexIdentifier
-	case r == '>' || r == '<' || r == '=' || r == '+' || r == '-' || r == '*' || r == '/' || r == ':':
+	case isOperator(r, l.peek()):
 		l.backup()
 		return lexOperator
 	default:
@@ -122,11 +122,15 @@ func isComment(r, n rune) bool {
 }
 
 func isSeparator(r, n rune) bool {
-	return r == '(' || r == ')' || r == '[' || r == ']' || r == '{' || r == '}' || r == ','
+	return r == '(' || r == ')' || r == '[' || r == ']' || r == '{' || r == '}' || r == ',' || r == ';'
+}
+
+func isOperator(r, n rune) bool {
+	return r == '>' || r == '<' || r == '=' || r == '+' || r == '-' || r == '*' || r == '/' || r == ':'
 }
 
 func lexSeparator(l *Lexer) stateFn {
-	l.accept("()[]{},")
+	l.accept("()[]{},;")
 	l.emit(TokenSeparator)
 	return lexText
 }
