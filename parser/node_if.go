@@ -30,5 +30,5 @@ func (n *IfNode) ToGolang(indent int) string {
 	}
 
 	i := strings.Repeat(" ", indent*GolangIndent)
-	return fmt.Sprintf("%sif %s {\n%s\n}", i, n.Expression.ToGolang(0), strings.Join(stmts, "\n"))
+	return fmt.Sprintf("%sif %s {\n%s\n%s}", i, n.Expression.ToGolang(0), strings.Join(stmts, "\n"), i)
 }
