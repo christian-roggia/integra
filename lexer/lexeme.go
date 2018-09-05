@@ -54,11 +54,9 @@ func lexIdentifier(l *Lexer) stateFn {
 	allow := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890_"
 	l.acceptRun(allow)
 
-	for _, k := range Keywords {
-		if l.input[l.start:l.pos] == string(k) {
-			l.emit(TokenKeyword)
-			return lexText
-		}
+	if IsKeyword(l.input[l.start:l.pos]) {
+		l.emit(TokenKeyword)
+		return lexText
 	}
 
 	l.emit(TokenIdentifier)

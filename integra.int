@@ -1,15 +1,17 @@
 // This is an example application written in Integra.
 
 equation genesis() {
-    print("abc %d", pi());
+    print("abc %d", pi(1,2,3), pi());
 
     if x == 3 {
         v := 1;
         write("%s", 3 * (2 + -1) - 0x18 + v);
         v = 2;
     }
+
+    return 0;
 }
 
-equation pi() {
+equation pi(S, N, K) {
     return 5 + +3;
 }

@@ -4,38 +4,49 @@ package lexer
 type KeywordType string
 
 const (
-	// KeywordEquation is used to define new functions.
-	KeywordEquation KeywordType = "equation"
+	// KwEquation is used to define new functions.
+	KwEquation KeywordType = "equation"
 
-	// KeywordIf is used for if ... {} conditions.
-	KeywordIf KeywordType = "if"
+	// KwIf is used for if ... {} conditions.
+	KwIf KeywordType = "if"
 
-	// KeywordElse is used for if ... {} else {} conditions.
-	KeywordElse KeywordType = "else"
+	// KwElse is used for if ... {} else {} conditions.
+	KwElse KeywordType = "else"
 
-	// KeywordReturn is used to return values from a function.
-	KeywordReturn KeywordType = "return"
+	// KwReturn is used to return values from a function.
+	KwReturn KeywordType = "return"
 
-	// KeywordPrint is a built-in function that allows data to be printed in the console.
-	KeywordPrint KeywordType = "print"
+	// KwPrint is a built-in function that allows data to be printed in the console.
+	KwPrint KeywordType = "print"
 
-	// KeywordWrite is a built-in function that allows data to be saved in a file.
-	KeywordWrite KeywordType = "write"
+	// KwWrite is a built-in function that allows data to be saved in a file.
+	KwWrite KeywordType = "write"
 
-	// KeywordPi is a built-in mathematical function that will return the n-th decimal digit of pi.
-	KeywordPi KeywordType = "if"
+	// KwPi is a built-in mathematical function that will return the n-th decimal digit of pi.
+	KwPi KeywordType = "if"
 
-	// KeywordEuler is a built-in mathematical function that will return the n-th decimal digit of e.
-	KeywordEuler KeywordType = "if"
+	// KwEuler is a built-in mathematical function that will return the n-th decimal digit of e.
+	KwEuler KeywordType = "if"
 
-	// KeywordPrime is a built-in mathematical function that will return the n-th prime number.
-	KeywordPrime KeywordType = "if"
+	// KwPrime is a built-in mathematical function that will return the n-th prime number.
+	KwPrime KeywordType = "if"
 )
 
 // Keywords is a collection of all the valid keywords.
 var Keywords = []KeywordType{
-	KeywordEquation,
-	KeywordIf, KeywordElse, KeywordReturn,
-	KeywordPrint, KeywordWrite,
-	KeywordPi, KeywordEuler, KeywordPrime,
+	KwEquation,
+	KwIf, KwElse, KwReturn,
+	KwPrint, KwWrite,
+	KwPi, KwEuler, KwPrime,
+}
+
+// IsKeyword returns whether the current string is a keyword or not.
+func IsKeyword(s string) bool {
+	for _, k := range Keywords {
+		if s == string(k) {
+			return true
+		}
+	}
+
+	return false
 }

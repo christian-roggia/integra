@@ -7,9 +7,10 @@ import (
 )
 
 type Parser struct {
-	lex *lexer.Lexer
-
+	lex    *lexer.Lexer
 	backup *lexer.Token
+
+	tr *GlobalNode
 }
 
 func NewParser(name, input string) *Parser {
@@ -20,6 +21,10 @@ func NewParser(name, input string) *Parser {
 
 func (parser *Parser) Parse() error {
 	return parser.walk()
+}
+
+func (parser *Parser) Tree() *GlobalNode {
+	return parser.tr
 }
 
 func (parser *Parser) next() lexer.Token {
@@ -45,138 +50,177 @@ func (parser *Parser) peek() lexer.Token {
 }
 
 func (parser *Parser) walk() error {
+	parser.tr = newGlobalNode()
+
 	for {
-		item := parser.next()
-		switch item.Type {
+		next := parser.next()
+		switch next.Type {
 		case lexer.TokenComment:
-			// TODO.
+			parser.tr.append(newCommentNode(next.Value))
 		case lexer.TokenKeyword:
-			if item.Value != string(lexer.KeywordEquation) {
-				return fmt.Errorf("unexpected keyword %s", item.Value)
+			if !next.IsKeyword(lexer.KwEquation) {
+				return fmt.Errorf("unexpected keyword '%s'", next.Value)
 			}
 
-			if err := parser.walkDeclarator(); err != nil {
+			id, args, err := parser.walkDeclarator()
+			if err != nil {
 				return err
 			}
 
-			if err := parser.walkCompoundStatement(); err != nil {
+			stmts, err := parser.walkCompoundStatement()
+			if err != nil {
 				return err
 			}
+
+			equationNode := newEquationNode(id, args)
+			equationNode.append(stmts...)
+
+			parser.tr.append(equationNode)
 		case lexer.TokenEOF:
 			return nil
 		default:
-			return fmt.Errorf("unexpected token %s", item.Type.String())
+			return fmt.Errorf("unexpected token %s", next.String())
 		}
 	}
 }
 
-func (parser *Parser) walkAssignmentStatement() error {
+func (parser *Parser) walkAssignmentStatement() (Node, error) {
 	context := "clause assignment statement"
 
 	next := parser.next()
-	if next.Type != lexer.TokenIdentifier {
-		return fmt.Errorf("found '%s', expected identifier in %s", next.Type, context)
+	if !next.IsIdentifier() {
+		return nil, fmt.Errorf("found '%s', expected identifier in %s", next.Type, context)
+	}
+	id := next.Value
+
+	next = parser.next()
+	if !next.IsOperator(lexer.OpAssignment) && !next.IsOperator(lexer.OpInitialization) {
+		return nil, fmt.Errorf("found '%s', expected assigner in %s", next.Type, context)
+	}
+	kind := next.Value
+
+	expr, err := parser.walkExpression(true)
+	if err != nil {
+		return nil, err
 	}
 
 	next = parser.next()
-	if next.Type != lexer.TokenOperator || (next.Value != ":=" && next.Value != "=") {
-		return fmt.Errorf("found '%s', expected assigner in %s", next.Type, context)
+	if !next.IsSeparator(lexer.SepSemicolon) {
+		return nil, fmt.Errorf("found '%s', expected ';' in %s", next.Type, context)
 	}
 
-	if err := parser.walkExpression(true); err != nil {
-		return err
+	if kind == lexer.OpInitialization {
+		return newVariableInitializerNode(id, newExpressionNode(expr)), nil
 	}
 
-	next = parser.next()
-	if next.Type != lexer.TokenSeparator || next.Value != ";" {
-		return fmt.Errorf("found '%s', expected identifier in %s", next.Type, context)
-	}
-
-	return nil
+	return newVariableDeclaratorNode(id, newExpressionNode(expr)), nil
 }
 
-func (parser *Parser) walkDeclarator() error {
+func (parser *Parser) walkDeclarator() (string, []*VariableNode, error) {
 	context := "clause declarator"
 
 	next := parser.next()
-	if next.Type != lexer.TokenIdentifier {
-		return fmt.Errorf("found %s, expected identifier in %s", next.String(), context)
+	if !next.IsIdentifier() {
+		return "<invalid>", nil, fmt.Errorf("found '%s', expected identifier in %s", next.Value, context)
 	}
+	id := next.Value
 
 	next = parser.next()
-	if next.Type != lexer.TokenSeparator || next.Value != "(" {
-		return fmt.Errorf("found %s, expected parenthesis '(' in %s", next.String(), context)
+	if !next.IsSeparator(lexer.SepLeftRoundBracket) {
+		return id, nil, fmt.Errorf("found '%s', expected parenthesis '(' in %s", next.Value, context)
 	}
 
+	var args []*VariableNode
 	peek := parser.peek()
-	if peek.Type != lexer.TokenSeparator || peek.Value != ")" {
-		if err := parser.walkIdentifierList(); err != nil {
-			return err
+	if !peek.IsSeparator(lexer.SepRightRoundBracket) {
+		var err error
+		args, err = parser.walkIdentifierList()
+		if err != nil {
+			return id, nil, err
 		}
 	}
 
 	next = parser.next()
-	if next.Type != lexer.TokenSeparator || next.Value != ")" {
-		return fmt.Errorf("found %s, expected parenthesis ')' in %s", next.String(), context)
+	if !next.IsSeparator(lexer.SepRightRoundBracket) {
+		return id, nil, fmt.Errorf("found '%s', expected parenthesis ')' in %s", next.Value, context)
 	}
 
-	return nil
+	return id, args, nil
 }
 
-func (parser *Parser) walkIdentifierList() error {
+func (parser *Parser) walkIdentifierList() ([]*VariableNode, error) {
 	context := "clause identifier list"
 
 	next := parser.next()
-	if next.Type != lexer.TokenIdentifier {
-		return fmt.Errorf("found %s, expected identifier in %s", next.String(), context)
+	if !next.IsIdentifier() {
+		return nil, fmt.Errorf("found '%s', expected identifier in %s", next.Value, context)
 	}
+	args := []*VariableNode{newVariableNode(next.Value)}
 
 	peek := parser.peek()
-	if peek.Type == lexer.TokenSeparator && peek.Value == "," {
+	if peek.IsSeparator(lexer.SepComma) {
 		parser.next()
-		return parser.walkIdentifierList()
+
+		list, err := parser.walkIdentifierList()
+		if err != nil {
+			return nil, err
+		}
+
+		return append(args, list...), nil
 	}
 
-	return nil
+	return args, nil
 }
 
-func (parser *Parser) walkCompoundStatement() error {
+func (parser *Parser) walkCompoundStatement() ([]Node, error) {
 	context := "clause compound statement"
 
 	next := parser.next()
-	if next.Type != lexer.TokenSeparator || next.Value != "{" {
-		return fmt.Errorf("found %s, expected parenthesis '{'in %s", next.String(), context)
+	if !next.IsSeparator(lexer.SepLeftCurlyBracket) {
+		return nil, fmt.Errorf("found '%s', expected parenthesis '{' in %s", next.Value, context)
 	}
 
+	var stmts []Node
 	for {
 		peek := parser.peek()
 		switch peek.Type {
 		case lexer.TokenKeyword:
-			if peek.Value == string(lexer.KeywordPrint) || peek.Value == string(lexer.KeywordWrite) {
-				parser.next()
-				if err := parser.walkStringArgumentList(); err != nil {
-					return err
+			if peek.IsKeyword(lexer.KwPrint) || peek.IsKeyword(lexer.KwWrite) {
+				next := parser.next()
+				id := next.Value
+
+				args, err := parser.walkStringArgumentList()
+				if err != nil {
+					return nil, err
 				}
 
 				next = parser.next()
-				if next.Type != lexer.TokenSeparator || next.Value != ";" {
-					return fmt.Errorf("found '%s', expected ';' in %s", next.Value, context)
+				if !next.IsSeparator(lexer.SepSemicolon) {
+					return nil, fmt.Errorf("found '%s', expected ';' in %s", next.Value, context)
 				}
+
+				stmts = append(stmts, newCallNode(id, args))
 			}
-			if peek.Value == string(lexer.KeywordIf) {
-				if err := parser.walkSelectionStatement(); err != nil {
-					return err
+			if peek.Value == string(lexer.KwIf) {
+				stmt, err := parser.walkSelectionStatement()
+				if err != nil {
+					return nil, err
 				}
+				stmts = append(stmts, stmt)
 			}
-			if peek.Value == string(lexer.KeywordReturn) {
-				if err := parser.walkJumpStatement(); err != nil {
-					return err
+			if peek.Value == string(lexer.KwReturn) {
+				stmt, err := parser.walkJumpStatement()
+				if err != nil {
+					return nil, err
 				}
+				stmts = append(stmts, stmt)
 			}
 		case lexer.TokenIdentifier:
-			if err := parser.walkAssignmentStatement(); err != nil {
-				return err
+			stmt, err := parser.walkAssignmentStatement()
+			if err != nil {
+				return nil, err
 			}
+			stmts = append(stmts, stmt)
 		default:
 			goto FINISH
 		}
@@ -184,44 +228,50 @@ func (parser *Parser) walkCompoundStatement() error {
 
 FINISH:
 	next = parser.next()
-	if next.Type != lexer.TokenSeparator || next.Value != "}" {
-		return fmt.Errorf("found %s, expected parenthesis '}' in %s", next.String(), context)
+	if !next.IsSeparator(lexer.SepRightCurlyBracket) {
+		return nil, fmt.Errorf("found '%s', expected parenthesis '}' in %s", next.Value, context)
 	}
-	return nil
+	return stmts, nil
 }
 
-func (parser *Parser) walkSelectionStatement() error {
+func (parser *Parser) walkSelectionStatement() (*IfNode, error) {
 	context := "clause selection statement"
 
 	next := parser.next()
-	if next.Type != lexer.TokenKeyword || next.Value != string(lexer.KeywordIf) {
-		return fmt.Errorf("found '%s', expected keyword 'if' in %s", next.Value, context)
+	if !next.IsKeyword(lexer.KwIf) {
+		return nil, fmt.Errorf("found '%s', expected keyword 'if' in %s", next.Value, context)
 	}
 
-	if err := parser.walkExpression(true); err != nil {
-		return err
+	expr, err := parser.walkExpression(true)
+	if err != nil {
+		return nil, err
 	}
+	stmt := newIfNode(newExpressionNode(expr))
 
-	return parser.walkCompoundStatement()
+	stmts, err := parser.walkCompoundStatement()
+	stmt.append(stmts...)
+
+	return stmt, err
 }
 
-func (parser *Parser) walkJumpStatement() error {
+func (parser *Parser) walkJumpStatement() (*ReturnNode, error) {
 	context := "clause jump statement"
 
 	next := parser.next()
-	if next.Type != lexer.TokenKeyword || next.Value != string(lexer.KeywordReturn) {
-		return fmt.Errorf("found '%s', expected keyword 'return' in %s", next.Value, context)
+	if !next.IsKeyword(lexer.KwReturn) {
+		return nil, fmt.Errorf("found '%s', expected keyword 'return' in %s", next.Value, context)
 	}
 
-	if err := parser.walkExpression(false); err != nil {
-		return err
+	expr, err := parser.walkExpression(false)
+	if err != nil {
+		return nil, err
 	}
 
 	next = parser.next()
-	if next.Type != lexer.TokenSeparator || next.Value != ";" {
-		return fmt.Errorf("found '%s', expected ';' in %s", next.Value, context)
+	if !next.IsSeparator(lexer.SepSemicolon) {
+		return nil, fmt.Errorf("found '%s', expected ';' in %s", next.Value, context)
 	}
-	return nil
+	return newReturnNode(newExpressionNode(expr)), nil
 }
 
 func isComparisonOperator(s string) bool {
@@ -232,117 +282,160 @@ func isArithmeticOperator(s string) bool {
 	return s == "+" || s == "-" || s == "*" || s == "/"
 }
 
-func (parser *Parser) walkExpression(isComparisonAllowed bool) error {
+func (parser *Parser) walkExpression(isComparisonAllowed bool) ([]Node, error) {
 	context := "clause expression"
 
-	if err := parser.walkPrimaryExpression(isComparisonAllowed); err != nil {
-		return err
+	expr, err := parser.walkPrimaryExpression(isComparisonAllowed)
+	if err != nil {
+		return nil, err
 	}
+	if expr == nil {
+		return nil, nil
+	}
+	exprs := []Node{expr}
 
 	peek := parser.peek()
 	switch peek.Type {
 	case lexer.TokenOperator:
 		if (isComparisonAllowed && !isComparisonOperator(peek.Value)) &&
 			!isArithmeticOperator(peek.Value) {
-			return fmt.Errorf("unexpected operator '%s' in %s", peek.Value, context)
+			return nil, fmt.Errorf("unexpected operator '%s' in %s", peek.Value, context)
 		}
 
-		parser.next()
-		return parser.walkExpression(isComparisonAllowed)
+		next := parser.next()
+		exprs = append(exprs, newOperatorNode(next.Value))
+
+		expr, err := parser.walkExpression(isComparisonAllowed)
+		if err != nil {
+			return nil, err
+		}
+		return append(exprs, expr...), nil
 	default:
-		return nil
+		return exprs, nil
 	}
 }
 
-func (parser *Parser) walkPrimaryExpression(isComparisonAllowed bool) error {
+func (parser *Parser) walkPrimaryExpression(isComparisonAllowed bool) (Node, error) {
 	context := "clause primary expression"
 
 	peek := parser.peek()
 	switch peek.Type {
 	case lexer.TokenIdentifier:
-		parser.next()
+		next := parser.next()
+		id := next.Value
+
 		peek := parser.peek()
-		if peek.Type == lexer.TokenSeparator && peek.Value == "(" {
-			return parser.walkArgumentList()
+		if peek.IsSeparator(lexer.SepLeftRoundBracket) {
+			args, err := parser.walkArgumentList()
+			if err != nil {
+				return nil, err
+			}
+
+			return newCallNode(id, args), nil
 		}
+
+		return newNumberNode(id), nil
 	case lexer.TokenNumber:
-		parser.next()
+		next := parser.next()
+		return newNumberNode(next.Value), nil
 	case lexer.TokenSeparator:
-		if peek.Value == "(" {
+		if peek.IsSeparator(lexer.SepLeftRoundBracket) {
 			parser.next()
-			if err := parser.walkExpression(isComparisonAllowed); err != nil {
-				return err
+
+			expr, err := parser.walkExpression(isComparisonAllowed)
+			if err != nil {
+				return nil, err
 			}
 
 			next := parser.next()
-			if next.Value != ")" {
-				return fmt.Errorf("found '%s', expected parenthesis ')' in %s", next.Value, context)
+			if !next.IsSeparator(lexer.SepRightRoundBracket) {
+				return nil, fmt.Errorf("found '%s', expected parenthesis ')' in %s", next.Value, context)
 			}
+			if len(expr) == 0 {
+				return nil, fmt.Errorf("unexpected empty expression '()' in %s", context)
+			}
+
+			return newExpressionNode(expr), nil
 		}
 	}
 
-	return nil
+	return nil, nil
 }
 
-func (parser *Parser) walkArgumentList() error {
+func (parser *Parser) walkArgumentList() ([]Node, error) {
 	context := "clause argument list"
 
 	next := parser.next()
-	if next.Type != lexer.TokenSeparator || next.Value != "(" {
-		return fmt.Errorf("found '%s', expected parenthesis '(' in %s", next.Value, context)
+	if !next.IsSeparator(lexer.SepLeftRoundBracket) {
+		return nil, fmt.Errorf("found '%s', expected parenthesis '(' in %s", next.Value, context)
 	}
 
-	if err := parser.walkArgumentExpression(); err != nil {
-		return err
+	args, err := parser.walkArgumentExpression()
+	if err != nil {
+		return nil, err
 	}
 
 	next = parser.next()
-	if next.Type != lexer.TokenSeparator || next.Value != ")" {
-		return fmt.Errorf("found '%s', expected parenthesis ')' in %s", next.Value, context)
+	if !next.IsSeparator(lexer.SepRightRoundBracket) {
+		return nil, fmt.Errorf("found '%s', expected parenthesis ')' in %s", next.Value, context)
 	}
-	return nil
+	return args, nil
 }
 
-func (parser *Parser) walkStringArgumentList() error {
+func (parser *Parser) walkStringArgumentList() ([]Node, error) {
 	context := "clause string argument list"
 
 	next := parser.next()
-	if next.Type != lexer.TokenSeparator || next.Value != "(" {
-		return fmt.Errorf("found '%s', expected parenthesis '(' in %s", next.Value, context)
+	if !next.IsSeparator(lexer.SepLeftRoundBracket) {
+		return nil, fmt.Errorf("found '%s', expected parenthesis '(' in %s", next.Value, context)
 	}
 
 	next = parser.next()
 	if next.Type != lexer.TokenString {
-		return fmt.Errorf("found '%s', expected string in %s", next.Value, context)
+		return nil, fmt.Errorf("found '%s', expected string in %s", next.Value, context)
 	}
+	args := []Node{newStringNode(next.Value)}
 
 	peek := parser.peek()
-	if peek.Type == lexer.TokenSeparator && peek.Value == "," {
+	if peek.IsSeparator(lexer.SepComma) {
 		parser.next()
-		if err := parser.walkArgumentExpression(); err != nil {
-			return err
+
+		arg, err := parser.walkArgumentExpression()
+		if err != nil {
+			return nil, err
 		}
+		args = append(args, arg...)
 	}
 
 	next = parser.next()
-	if next.Type != lexer.TokenSeparator || next.Value != ")" {
-		return fmt.Errorf("found '%s', expected parenthesis ')' in %s", next.Value, context)
+	if !next.IsSeparator(lexer.SepRightRoundBracket) {
+		return nil, fmt.Errorf("found '%s', expected parenthesis ')' in %s", next.Value, context)
 	}
-	return nil
+	return args, nil
 }
 
-func (parser *Parser) walkArgumentExpression() error {
+func (parser *Parser) walkArgumentExpression() ([]Node, error) {
 	//context := "clause argument expression"
 
-	if err := parser.walkExpression(false); err != nil {
-		return err
+	expr, err := parser.walkExpression(false)
+	if err != nil {
+		return nil, err
+	}
+	if len(expr) == 0 {
+		return nil, nil
 	}
 
+	exprs := []Node{newExpressionNode(expr)}
 	peek := parser.peek()
-	if peek.Type == lexer.TokenSeparator && peek.Value == "," {
+	if peek.IsSeparator(lexer.SepComma) {
 		parser.next()
-		return parser.walkArgumentExpression()
+
+		expr, err := parser.walkArgumentExpression()
+		if err != nil {
+			return nil, err
+		}
+		exprs = append(exprs, expr...)
 	}
 
-	return nil
+	return exprs, nil
 }

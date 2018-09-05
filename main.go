@@ -27,5 +27,14 @@ func main() {
 		return
 	}
 
+	// j, err := json.MarshalIndent(p.Tree(), "", "  ")
+	// if err != nil {
+	// 	fmt.Printf("json.Marshal(): %s\n", err)
+	// 	return
+	// }
+
+	// fmt.Printf("%s\n", j)
+
+	fmt.Printf("%s\n", p.Tree().ToGolang())
 	fmt.Println("Succesfully finished.")
 }
