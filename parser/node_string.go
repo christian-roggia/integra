@@ -13,6 +13,6 @@ func (n *StringNode) String() string {
 	return n.Value
 }
 
-func (n *StringNode) ToGolang() string {
+func (n *StringNode) ToGolang(indent int) string {
 	return n.Value
 }

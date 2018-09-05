@@ -1,6 +1,9 @@
 package parser
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 type CommentNode struct {
 	Type    NodeType `json:"type"`
@@ -15,6 +18,7 @@ func (c *CommentNode) String() string {
 	return c.Comment
 }
 
-func (c *CommentNode) ToGolang() string {
-	return fmt.Sprintf("//%s", c.Comment[2:])
+func (c *CommentNode) ToGolang(indent int) string {
+	i := strings.Repeat(" ", indent*GolangIndent)
+	return fmt.Sprintf("%s//%s", i, c.Comment[2:])
 }

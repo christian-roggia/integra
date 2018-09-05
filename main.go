@@ -35,6 +35,6 @@ func main() {
 
 	// fmt.Printf("%s\n", j)
 
-	fmt.Printf("%s\n", p.Tree().ToGolang())
+	fmt.Printf("%s\n", p.Tree().ToGolang(0))
 	fmt.Println("Succesfully finished.")
 }

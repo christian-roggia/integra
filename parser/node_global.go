@@ -27,10 +27,10 @@ func (l *GlobalNode) String() string {
 	return b.String()
 }
 
-func (l *GlobalNode) ToGolang() string {
+func (l *GlobalNode) ToGolang(indent int) string {
 	var funcs []string
 	for _, fn := range l.Nodes {
-		funcs = append(funcs, fn.ToGolang())
+		funcs = append(funcs, fn.ToGolang(0))
 	}
 
 	return fmt.Sprintf("%s\n", strings.Join(funcs, "\n\n"))

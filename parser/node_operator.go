@@ -17,6 +17,6 @@ func (n *OperatorNode) String() string {
 	return n.Operator
 }
 
-func (n *OperatorNode) ToGolang() string {
+func (n *OperatorNode) ToGolang(indent int) string {
 	return fmt.Sprintf(" %s ", n.Operator)
 }

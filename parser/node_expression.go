@@ -22,10 +22,10 @@ func (expr *ExpressionNode) String() string {
 	return ""
 }
 
-func (expr *ExpressionNode) ToGolang() string {
+func (expr *ExpressionNode) ToGolang(indent int) string {
 	var s []string
 	for _, e := range expr.Nodes {
-		s = append(s, e.ToGolang())
+		s = append(s, e.ToGolang(0))
 	}
 
 	return fmt.Sprintf("%s", strings.Join(s, " "))

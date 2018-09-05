@@ -23,11 +23,12 @@ func (n *IfNode) String() string {
 	return ""
 }
 
-func (n *IfNode) ToGolang() string {
+func (n *IfNode) ToGolang(indent int) string {
 	var stmts []string
 	for _, stmt := range n.Block {
-		stmts = append(stmts, stmt.ToGolang())
+		stmts = append(stmts, stmt.ToGolang(indent+1))
 	}
 
-	return fmt.Sprintf("if %s {\n%s\n}", n.Expression.ToGolang(), strings.Join(stmts, "\n"))
+	i := strings.Repeat(" ", indent*GolangIndent)
+	return fmt.Sprintf("%sif %s {\n%s\n}", i, n.Expression.ToGolang(0), strings.Join(stmts, "\n"))
 }

@@ -15,6 +15,6 @@ func (n *VariableNode) String() string {
 	return n.Variable
 }
 
-func (n *VariableNode) ToGolang() string {
+func (n *VariableNode) ToGolang(indent int) string {
 	return fmt.Sprintf("%s int64", n.Variable)
 }

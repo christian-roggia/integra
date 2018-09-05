@@ -1,6 +1,9 @@
 package parser
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 type VariableInitializerNode struct {
 	Type       NodeType        `json:"type"`
@@ -16,6 +19,7 @@ func (n *VariableInitializerNode) String() string {
 	return ""
 }
 
-func (n *VariableInitializerNode) ToGolang() string {
-	return fmt.Sprintf("%s := %s", n.Name, n.Expression.ToGolang())
+func (n *VariableInitializerNode) ToGolang(indent int) string {
+	i := strings.Repeat(" ", indent*GolangIndent)
+	return fmt.Sprintf("%s%s := %s", i, n.Name, n.Expression.ToGolang(0))
 }

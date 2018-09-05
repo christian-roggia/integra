@@ -19,11 +19,12 @@ func (c *CallNode) String() string {
 	return fmt.Sprintf("")
 }
 
-func (c *CallNode) ToGolang() string {
+func (c *CallNode) ToGolang(indent int) string {
 	var args []string
 	for _, arg := range c.Arguments {
-		args = append(args, arg.ToGolang())
+		args = append(args, arg.ToGolang(0))
 	}
 
-	return fmt.Sprintf("%s(%s)", c.Name, strings.Join(args, ", "))
+	i := strings.Repeat(" ", indent*GolangIndent)
+	return fmt.Sprintf("%s%s(%s)", i, c.Name, strings.Join(args, ", "))
 }

@@ -1,6 +1,9 @@
 package parser
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 type ReturnNode struct {
 	Type       NodeType        `json:"type"`
@@ -15,6 +18,7 @@ func (n *ReturnNode) String() string {
 	return ""
 }
 
-func (n *ReturnNode) ToGolang() string {
-	return fmt.Sprintf("return %s", n.Expression.ToGolang())
+func (n *ReturnNode) ToGolang(indent int) string {
+	i := strings.Repeat(" ", indent*GolangIndent)
+	return fmt.Sprintf("%sreturn %s", i, n.Expression.ToGolang(0))
 }

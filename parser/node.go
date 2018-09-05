@@ -22,5 +22,7 @@ const (
 
 type Node interface {
 	String() string
-	ToGolang() string
+	ToGolang(indent int) string
 }
+
+const GolangIndent = 2
