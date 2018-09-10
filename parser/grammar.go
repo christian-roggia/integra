@@ -15,6 +15,10 @@ package parser
 // 		: IDENTIFIER
 // 		| identifier_list ',' IDENTIFIER
 // 		;
+
+// compound_statement
+//		: '{' '}'
+//		| '{' statement_list '}'
 //		;
 
 // statement_list
@@ -27,6 +31,7 @@ package parser
 // 	| expression_statement
 // 	| selection_statement
 // 	| jump_statement
+//  | init_declarator
 // 	;
 
 // expression_statement
@@ -36,7 +41,6 @@ package parser
 
 // selection_statement
 // 	: IF '(' expression ')' statement
-// 	| IF '(' expression ')' statement ELSE statement
 // 	;
 
 // jump_statement
@@ -47,17 +51,6 @@ package parser
 // 	: assignment_expression
 // 	| expression ',' assignment_expression
 // 	;
-
-// compound_statement
-//		: '{' '}'
-//		| '{' statement_list '}'
-//		| '{' declaration_list '}'
-//		| '{' declaration_list statement_list '}'
-//		;
-
-// declaration_list
-//		: init_declarator
-//		;
 
 // init_declarator
 // 	: IDENTIFIER ':' '=' initializer ';'
