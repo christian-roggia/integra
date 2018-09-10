@@ -18,3 +18,7 @@ func (n *VariableNode) String() string {
 func (n *VariableNode) ToGolang(indent int) string {
 	return fmt.Sprintf("%s int64", n.Variable)
 }
+
+func (n *VariableNode) ToC(indent int) string {
+	return fmt.Sprintf("int64_t %s", n.Variable)
+}

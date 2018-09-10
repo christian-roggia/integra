@@ -22,3 +22,8 @@ func (c *CommentNode) ToGolang(indent int) string {
 	i := strings.Repeat(" ", indent*GolangIndent)
 	return fmt.Sprintf("%s//%s", i, c.Comment[2:])
 }
+
+func (c *CommentNode) ToC(indent int) string {
+	i := strings.Repeat(" ", indent*CIndent)
+	return fmt.Sprintf("%s//%s", i, c.Comment[2:])
+}

@@ -16,3 +16,7 @@ func (n *NumberNode) String() string {
 func (n *NumberNode) ToGolang(indent int) string {
 	return n.Value
 }
+
+func (n *NumberNode) ToC(indent int) string {
+	return n.Value
+}

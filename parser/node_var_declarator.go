@@ -23,3 +23,8 @@ func (n *VariableDeclaratorNode) ToGolang(indent int) string {
 	i := strings.Repeat(" ", indent*GolangIndent)
 	return fmt.Sprintf("%s%s = %s", i, n.Name, n.Expression.ToGolang(0))
 }
+
+func (n *VariableDeclaratorNode) ToC(indent int) string {
+	i := strings.Repeat(" ", indent*CIndent)
+	return fmt.Sprintf("%s%s = %s;", i, n.Name, n.Expression.ToC(0))
+}

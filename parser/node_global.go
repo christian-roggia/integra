@@ -33,5 +33,14 @@ func (l *GlobalNode) ToGolang(indent int) string {
 		funcs = append(funcs, fn.ToGolang(0))
 	}
 
+	return fmt.Sprintf("%s\n\n%s\n", GolangGeneratedCode, strings.Join(funcs, "\n\n"))
+}
+
+func (l *GlobalNode) ToC(indent int) string {
+	var funcs []string
+	for _, fn := range l.Nodes {
+		funcs = append(funcs, fn.ToC(0))
+	}
+
 	return fmt.Sprintf("%s\n", strings.Join(funcs, "\n\n"))
 }

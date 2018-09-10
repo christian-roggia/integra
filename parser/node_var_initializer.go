@@ -23,3 +23,8 @@ func (n *VariableInitializerNode) ToGolang(indent int) string {
 	i := strings.Repeat(" ", indent*GolangIndent)
 	return fmt.Sprintf("%s%s := %s", i, n.Name, n.Expression.ToGolang(0))
 }
+
+func (n *VariableInitializerNode) ToC(indent int) string {
+	i := strings.Repeat(" ", indent*CIndent)
+	return fmt.Sprintf("%sint64_t %s = %s;", i, n.Name, n.Expression.ToC(0))
+}

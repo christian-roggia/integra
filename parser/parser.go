@@ -2,6 +2,7 @@ package parser
 
 import (
 	"fmt"
+	"math/rand"
 
 	"github.com/christian-roggia/integra/lexer"
 )
@@ -10,7 +11,8 @@ type Parser struct {
 	lex    *lexer.Lexer
 	backup *lexer.Token
 
-	tr *GlobalNode
+	tbl *SymbolTable
+	tr  *GlobalNode
 }
 
 func NewParser(name, input string) *Parser {
@@ -25,6 +27,10 @@ func (parser *Parser) Parse() error {
 
 func (parser *Parser) Tree() *GlobalNode {
 	return parser.tr
+}
+
+func (parser *Parser) Symbols() *SymbolTable {
+	return parser.tbl
 }
 
 func (parser *Parser) next() lexer.Token {
@@ -51,6 +57,7 @@ func (parser *Parser) peek() lexer.Token {
 
 func (parser *Parser) walk() error {
 	parser.tr = newGlobalNode()
+	parser.tbl = newSymbolTable("_global", 0)
 
 	for {
 		next := parser.next()
@@ -62,12 +69,14 @@ func (parser *Parser) walk() error {
 				return fmt.Errorf("unexpected keyword '%s'", next.Value)
 			}
 
-			id, args, err := parser.walkDeclarator()
+			symbols := parser.tbl.newChild("_tmp_fn")
+			id, args, err := parser.walkDeclarator(symbols)
 			if err != nil {
 				return err
 			}
+			parser.tbl.initialize(id, SymbolEquation)
 
-			stmts, err := parser.walkCompoundStatement()
+			stmts, err := parser.walkCompoundStatement(symbols)
 			if err != nil {
 				return err
 			}
@@ -84,7 +93,7 @@ func (parser *Parser) walk() error {
 	}
 }
 
-func (parser *Parser) walkAssignmentStatement() (Node, error) {
+func (parser *Parser) walkAssignmentStatement(symbols *SymbolTable) (Node, error) {
 	context := "clause assignment statement"
 
 	next := parser.next()
@@ -99,7 +108,7 @@ func (parser *Parser) walkAssignmentStatement() (Node, error) {
 	}
 	kind := next.Value
 
-	expr, err := parser.walkExpression(true)
+	expr, err := parser.walkExpression(symbols, true)
 	if err != nil {
 		return nil, err
 	}
@@ -110,13 +119,19 @@ func (parser *Parser) walkAssignmentStatement() (Node, error) {
 	}
 
 	if kind == lexer.OpInitialization {
+		if err := symbols.initialize(id, SymbolVariable); err != nil {
+			return nil, err
+		}
 		return newVariableInitializerNode(id, newExpressionNode(expr)), nil
 	}
 
+	if err := symbols.assign(id, SymbolVariable); err != nil {
+		return nil, err
+	}
 	return newVariableDeclaratorNode(id, newExpressionNode(expr)), nil
 }
 
-func (parser *Parser) walkDeclarator() (string, []*VariableNode, error) {
+func (parser *Parser) walkDeclarator(symbols *SymbolTable) (string, []*VariableNode, error) {
 	context := "clause declarator"
 
 	next := parser.next()
@@ -124,6 +139,7 @@ func (parser *Parser) walkDeclarator() (string, []*VariableNode, error) {
 		return "<invalid>", nil, fmt.Errorf("found '%s', expected identifier in %s", next.Value, context)
 	}
 	id := next.Value
+	symbols.Name = id
 
 	next = parser.next()
 	if !next.IsSeparator(lexer.SepLeftRoundBracket) {
@@ -134,7 +150,7 @@ func (parser *Parser) walkDeclarator() (string, []*VariableNode, error) {
 	peek := parser.peek()
 	if !peek.IsSeparator(lexer.SepRightRoundBracket) {
 		var err error
-		args, err = parser.walkIdentifierList()
+		args, err = parser.walkIdentifierList(symbols)
 		if err != nil {
 			return id, nil, err
 		}
@@ -148,7 +164,7 @@ func (parser *Parser) walkDeclarator() (string, []*VariableNode, error) {
 	return id, args, nil
 }
 
-func (parser *Parser) walkIdentifierList() ([]*VariableNode, error) {
+func (parser *Parser) walkIdentifierList(symbols *SymbolTable) ([]*VariableNode, error) {
 	context := "clause identifier list"
 
 	next := parser.next()
@@ -156,12 +172,13 @@ func (parser *Parser) walkIdentifierList() ([]*VariableNode, error) {
 		return nil, fmt.Errorf("found '%s', expected identifier in %s", next.Value, context)
 	}
 	args := []*VariableNode{newVariableNode(next.Value)}
+	symbols.initialize(next.Value, SymbolVariable)
 
 	peek := parser.peek()
 	if peek.IsSeparator(lexer.SepComma) {
 		parser.next()
 
-		list, err := parser.walkIdentifierList()
+		list, err := parser.walkIdentifierList(symbols)
 		if err != nil {
 			return nil, err
 		}
@@ -172,7 +189,7 @@ func (parser *Parser) walkIdentifierList() ([]*VariableNode, error) {
 	return args, nil
 }
 
-func (parser *Parser) walkCompoundStatement() ([]Node, error) {
+func (parser *Parser) walkCompoundStatement(symbols *SymbolTable) ([]Node, error) {
 	context := "clause compound statement"
 
 	next := parser.next()
@@ -189,7 +206,7 @@ func (parser *Parser) walkCompoundStatement() ([]Node, error) {
 				next := parser.next()
 				id := next.Value
 
-				args, err := parser.walkStringArgumentList()
+				args, err := parser.walkStringArgumentList(symbols)
 				if err != nil {
 					return nil, err
 				}
@@ -202,21 +219,21 @@ func (parser *Parser) walkCompoundStatement() ([]Node, error) {
 				stmts = append(stmts, newCallNode(id, args))
 			}
 			if peek.Value == string(lexer.KwIf) {
-				stmt, err := parser.walkSelectionStatement()
+				stmt, err := parser.walkSelectionStatement(symbols)
 				if err != nil {
 					return nil, err
 				}
 				stmts = append(stmts, stmt)
 			}
 			if peek.Value == string(lexer.KwReturn) {
-				stmt, err := parser.walkJumpStatement()
+				stmt, err := parser.walkJumpStatement(symbols)
 				if err != nil {
 					return nil, err
 				}
 				stmts = append(stmts, stmt)
 			}
 		case lexer.TokenIdentifier:
-			stmt, err := parser.walkAssignmentStatement()
+			stmt, err := parser.walkAssignmentStatement(symbols)
 			if err != nil {
 				return nil, err
 			}
@@ -234,7 +251,7 @@ FINISH:
 	return stmts, nil
 }
 
-func (parser *Parser) walkSelectionStatement() (*IfNode, error) {
+func (parser *Parser) walkSelectionStatement(symbols *SymbolTable) (*IfNode, error) {
 	context := "clause selection statement"
 
 	next := parser.next()
@@ -242,19 +259,19 @@ func (parser *Parser) walkSelectionStatement() (*IfNode, error) {
 		return nil, fmt.Errorf("found '%s', expected keyword 'if' in %s", next.Value, context)
 	}
 
-	expr, err := parser.walkExpression(true)
+	expr, err := parser.walkExpression(symbols, true)
 	if err != nil {
 		return nil, err
 	}
 	stmt := newIfNode(newExpressionNode(expr))
 
-	stmts, err := parser.walkCompoundStatement()
+	stmts, err := parser.walkCompoundStatement(symbols.newChild(fmt.Sprintf("_if_%x", rand.Int())))
 	stmt.append(stmts...)
 
 	return stmt, err
 }
 
-func (parser *Parser) walkJumpStatement() (*ReturnNode, error) {
+func (parser *Parser) walkJumpStatement(symbols *SymbolTable) (*ReturnNode, error) {
 	context := "clause jump statement"
 
 	next := parser.next()
@@ -262,7 +279,7 @@ func (parser *Parser) walkJumpStatement() (*ReturnNode, error) {
 		return nil, fmt.Errorf("found '%s', expected keyword 'return' in %s", next.Value, context)
 	}
 
-	expr, err := parser.walkExpression(false)
+	expr, err := parser.walkExpression(symbols, false)
 	if err != nil {
 		return nil, err
 	}
@@ -282,10 +299,10 @@ func isArithmeticOperator(s string) bool {
 	return s == "+" || s == "-" || s == "*" || s == "/"
 }
 
-func (parser *Parser) walkExpression(isComparisonAllowed bool) ([]Node, error) {
+func (parser *Parser) walkExpression(symbols *SymbolTable, isComparisonAllowed bool) ([]Node, error) {
 	context := "clause expression"
 
-	expr, err := parser.walkPrimaryExpression(isComparisonAllowed)
+	expr, err := parser.walkPrimaryExpression(symbols, isComparisonAllowed)
 	if err != nil {
 		return nil, err
 	}
@@ -305,7 +322,7 @@ func (parser *Parser) walkExpression(isComparisonAllowed bool) ([]Node, error) {
 		next := parser.next()
 		exprs = append(exprs, newOperatorNode(next.Value))
 
-		expr, err := parser.walkExpression(isComparisonAllowed)
+		expr, err := parser.walkExpression(symbols, isComparisonAllowed)
 		if err != nil {
 			return nil, err
 		}
@@ -315,7 +332,7 @@ func (parser *Parser) walkExpression(isComparisonAllowed bool) ([]Node, error) {
 	}
 }
 
-func (parser *Parser) walkPrimaryExpression(isComparisonAllowed bool) (Node, error) {
+func (parser *Parser) walkPrimaryExpression(symbols *SymbolTable, isComparisonAllowed bool) (Node, error) {
 	context := "clause primary expression"
 
 	peek := parser.peek()
@@ -326,12 +343,16 @@ func (parser *Parser) walkPrimaryExpression(isComparisonAllowed bool) (Node, err
 
 		peek := parser.peek()
 		if peek.IsSeparator(lexer.SepLeftRoundBracket) {
-			args, err := parser.walkArgumentList()
+			args, err := parser.walkArgumentList(symbols)
 			if err != nil {
 				return nil, err
 			}
 
 			return newCallNode(id, args), nil
+		}
+
+		if !symbols.has(id) && !symbols.parentHas(id) {
+			return nil, fmt.Errorf("unknown identifier '%s'", id)
 		}
 
 		return newNumberNode(id), nil
@@ -342,7 +363,7 @@ func (parser *Parser) walkPrimaryExpression(isComparisonAllowed bool) (Node, err
 		if peek.IsSeparator(lexer.SepLeftRoundBracket) {
 			parser.next()
 
-			expr, err := parser.walkExpression(isComparisonAllowed)
+			expr, err := parser.walkExpression(symbols, isComparisonAllowed)
 			if err != nil {
 				return nil, err
 			}
@@ -362,7 +383,7 @@ func (parser *Parser) walkPrimaryExpression(isComparisonAllowed bool) (Node, err
 	return nil, nil
 }
 
-func (parser *Parser) walkArgumentList() ([]Node, error) {
+func (parser *Parser) walkArgumentList(symbols *SymbolTable) ([]Node, error) {
 	context := "clause argument list"
 
 	next := parser.next()
@@ -370,7 +391,7 @@ func (parser *Parser) walkArgumentList() ([]Node, error) {
 		return nil, fmt.Errorf("found '%s', expected parenthesis '(' in %s", next.Value, context)
 	}
 
-	args, err := parser.walkArgumentExpression()
+	args, err := parser.walkArgumentExpression(symbols)
 	if err != nil {
 		return nil, err
 	}
@@ -382,7 +403,7 @@ func (parser *Parser) walkArgumentList() ([]Node, error) {
 	return args, nil
 }
 
-func (parser *Parser) walkStringArgumentList() ([]Node, error) {
+func (parser *Parser) walkStringArgumentList(symbols *SymbolTable) ([]Node, error) {
 	context := "clause string argument list"
 
 	next := parser.next()
@@ -400,7 +421,7 @@ func (parser *Parser) walkStringArgumentList() ([]Node, error) {
 	if peek.IsSeparator(lexer.SepComma) {
 		parser.next()
 
-		arg, err := parser.walkArgumentExpression()
+		arg, err := parser.walkArgumentExpression(symbols)
 		if err != nil {
 			return nil, err
 		}
@@ -414,10 +435,10 @@ func (parser *Parser) walkStringArgumentList() ([]Node, error) {
 	return args, nil
 }
 
-func (parser *Parser) walkArgumentExpression() ([]Node, error) {
+func (parser *Parser) walkArgumentExpression(symbols *SymbolTable) ([]Node, error) {
 	//context := "clause argument expression"
 
-	expr, err := parser.walkExpression(false)
+	expr, err := parser.walkExpression(symbols, false)
 	if err != nil {
 		return nil, err
 	}
@@ -430,7 +451,7 @@ func (parser *Parser) walkArgumentExpression() ([]Node, error) {
 	if peek.IsSeparator(lexer.SepComma) {
 		parser.next()
 
-		expr, err := parser.walkArgumentExpression()
+		expr, err := parser.walkArgumentExpression(symbols)
 		if err != nil {
 			return nil, err
 		}

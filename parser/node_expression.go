@@ -30,3 +30,12 @@ func (expr *ExpressionNode) ToGolang(indent int) string {
 
 	return fmt.Sprintf("%s", strings.Join(s, " "))
 }
+
+func (expr *ExpressionNode) ToC(indent int) string {
+	var s []string
+	for _, e := range expr.Nodes {
+		s = append(s, e.ToC(0))
+	}
+
+	return fmt.Sprintf("%s", strings.Join(s, " "))
+}

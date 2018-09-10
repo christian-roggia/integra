@@ -22,3 +22,8 @@ func (n *ReturnNode) ToGolang(indent int) string {
 	i := strings.Repeat(" ", indent*GolangIndent)
 	return fmt.Sprintf("%sreturn %s", i, n.Expression.ToGolang(0))
 }
+
+func (n *ReturnNode) ToC(indent int) string {
+	i := strings.Repeat(" ", indent*CIndent)
+	return fmt.Sprintf("%sreturn %s;", i, n.Expression.ToC(0))
+}

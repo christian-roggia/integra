@@ -39,3 +39,19 @@ func (eq *EquationNode) ToGolang(indent int) string {
 	return fmt.Sprintf("%sfunc %s(%s) int64 {\n%s\n}", i, eq.Name,
 		strings.Join(args, ", "), strings.Join(stmts, "\n"))
 }
+
+func (eq *EquationNode) ToC(indent int) string {
+	var args []string
+	for _, arg := range eq.Arguments {
+		args = append(args, arg.ToC(0))
+	}
+
+	var stmts []string
+	for _, stmt := range eq.Block {
+		stmts = append(stmts, stmt.ToC(indent+1))
+	}
+
+	i := strings.Repeat(" ", indent*CIndent)
+	return fmt.Sprintf("%sint64_t %s(%s) {\n%s\n}", i, eq.Name,
+		strings.Join(args, ", "), strings.Join(stmts, "\n"))
+}
